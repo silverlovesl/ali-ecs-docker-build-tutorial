@@ -1,0 +1,10 @@
+# Go
+tmp/
+bin/
+
+# Air
+build-errors.log
+
+# Env
+.env
+.env.local

@@ -1,0 +1,35 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# builds
+dist/
+build/
+.turbo/
+.tanstack/
+*.tsbuildinfo
+
+# go
+apps/api/bin/
+apps/api/tmp/
+apps/api/vendor/
+
+# generated (TanStack Router; produced by `bun run build`/`typecheck` or the Vite plugin)
+apps/web/src/routeTree.gen.ts
+
+# env
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+bun-debug.log*
+
+# editors / os
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json

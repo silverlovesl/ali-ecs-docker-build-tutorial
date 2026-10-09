@@ -1,0 +1,16 @@
+{
+  "name": "@repo/oxfmt-config",
+  "version": "0.0.0",
+  "private": true,
+  "files": [
+    "index.json"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./index.json",
+    "./index.json": "./index.json"
+  },
+  "devDependencies": {
+    "oxfmt": "^0.72.0"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "@repo/oxlint-config",
+  "version": "0.0.0",
+  "private": true,
+  "files": [
+    "index.json",
+    "react.json"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./index.json",
+    "./index.json": "./index.json",
+    "./react.json": "./react.json"
+  },
+  "devDependencies": {
+    "oxlint": "^1.87.0"
+  }
+}

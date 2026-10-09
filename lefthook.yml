@@ -1,0 +1,35 @@
+# Lefthook manages the git hooks for this monorepo.
+# Install with: bun run prepare  (also runs automatically on `bun install`)
+# https://lefthook.dev
+
+pre-commit:
+  # Kept sequential so multiple `stage_fixed` jobs cannot race on the index.
+  parallel: false
+  jobs:
+    - name: oxfmt
+      glob: '*.{js,jsx,mjs,cjs,ts,tsx,mts,cts,json,jsonc,json5,css,md,mdx}'
+      run: oxfmt -c packages/oxfmt-config/index.json --write {staged_files}
+      stage_fixed: true
+
+    - name: oxlint
+      glob: '*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}'
+      run: oxlint --fix --no-error-on-unmatched-pattern {staged_files}
+      stage_fixed: true
+
+    - name: gofmt
+      glob: '*.go'
+      run: gofmt -w {staged_files}
+      stage_fixed: true
+
+    - name: go vet
+      glob: '*.go'
+      root: 'apps/api/'
+      run: go vet ./...
+      stage_fixed: false
+
+commit-msg:
+  jobs:
+    - name: conventional commit
+      run: |
+        head -1 {1} | grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?!?: .{1,}' \
+          || { echo "Commit message must follow Conventional Commits (e.g. 'feat(web): add dashboard')"; exit 1; }

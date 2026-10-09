@@ -1,0 +1,36 @@
+{
+  "name": "ali-ecs-docker-build-tutorial",
+  "version": "0.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
+    "format": "oxfmt -c packages/oxfmt-config/index.json --write . && gofmt -w apps/api",
+    "format:check": "oxfmt -c packages/oxfmt-config/index.json --check . && test -z \"$(gofmt -l apps/api)\"",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "prepare": "lefthook install"
+  },
+  "devDependencies": {
+    "@repo/oxfmt-config": "workspace:*",
+    "@repo/oxlint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "lefthook": "^2.2.1",
+    "oxfmt": "^0.72.0",
+    "oxlint": "^1.87.0",
+    "turbo": "^2.11.7"
+  },
+  "engines": {
+    "bun": ">=1.2",
+    "node": ">=20.19"
+  },
+  "packageManager": "bun@1.4.2"
+}
