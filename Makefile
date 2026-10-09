@@ -106,6 +106,8 @@ clean: ## Remove build output and generated files
 
 clean-all: clean ## Also remove node_modules
 	rm -rf node_modules
+	rm -rf .build
+	rm -rf .turbo
 
 ##@ Misc
 
