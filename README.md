@@ -9,12 +9,13 @@ Turborepo orchestrating the task graph.
 
 ## Requirements
 
-| Tool | Version    | Notes                                              |
-| ---- | ---------- | -------------------------------------------------- |
-| Bun  | `>= 1.2`   | package manager + workspace runner                 |
-| Go   | `>= 1.25`  | API runtime                                        |
-| Node | `>= 20.19` | only needed as a fallback runtime for some tools   |
-| air  | latest     | optional, but used by `bun run dev` for `apps/api` |
+| Tool | Version    | Notes                                                   |
+| ---- | ---------- | ------------------------------------------------------- |
+| Bun  | `>= 1.2`   | package manager + workspace runner                      |
+| Go   | `>= 1.25`  | API runtime                                             |
+| Node | `>= 20.19` | only needed as a fallback runtime for some tools        |
+| air  | latest     | optional, but used by `bun run dev` for `apps/api`      |
+| make | any        | optional — every script is also available via `bun run` |
 
 ```bash
 # install air once (writes to $(go env GOPATH)/bin)
@@ -26,6 +27,13 @@ go install github.com/air-verse/air@latest
 ```bash
 bun install          # installs all workspaces and registers the git hooks
 bun run dev          # runs apps/web and apps/api in parallel
+```
+
+Or use the `Makefile`, which wraps every root script (see `make help`):
+
+```bash
+make setup           # bun install + git hooks
+make dev             # runs apps/web and apps/api in parallel
 ```
 
 - Web: http://localhost:3000
@@ -58,6 +66,7 @@ with `VITE_API_URL`.
 │   ├── oxlint-config        # shared .oxlintrc (base + react)
 │   └── typescript-config    # shared tsconfig (base / react / node)
 ├── lefthook.yml             # pre-commit + commit-msg hooks
+├── Makefile                 # task runner over the root scripts
 └── turbo.json               # task graph
 ```
 
@@ -67,21 +76,43 @@ diffs.
 
 ## Commands
 
-Run from the repo root — Turborepo fans each task out to the relevant workspaces.
+Run from the repo root — Turborepo fans each task out to the relevant workspaces. Every target is
+available both as a root `bun run` script and as a `make` target.
 
-| Command                | Description                                     |
-| ---------------------- | ----------------------------------------------- |
-| `bun run dev`          | Start every `dev` task (web + api)              |
-| `bun run build`        | Build all workspaces                            |
-| `bun run lint`         | `oxlint` for TS/TSX, `go vet` for Go            |
-| `bun run lint:fix`     | Apply safe oxlint fixes                         |
-| `bun run format`       | `oxfmt` for the repo, `gofmt` for Go            |
-| `bun run format:check` | Fail if anything is unformatted (CI friendly)   |
-| `bun run typecheck`    | `tsc --noEmit` for TS, `go build` for Go        |
-| `bun run test`         | `go test ./...` (and any future JS test runner) |
-| `bun run clean`        | Remove build output and `node_modules`          |
+| `make`              | `bun run`              | Description                                   |
+| ------------------- | ---------------------- | --------------------------------------------- |
+| `make install`      | —                      | Install all workspaces (also installs hooks)  |
+| `make hooks`        | `bun run prepare`      | Install/refresh the Lefthook git hooks        |
+| `make dev`          | `bun run dev`          | Start every `dev` task (web + api)            |
+| `make dev-web`      | —                      | Start only the web dev server                 |
+| `make dev-api`      | —                      | Start only the API (air hot reload)           |
+| `make build`        | `bun run build`        | Build all workspaces                          |
+| `make build-web`    | —                      | Build only `apps/web`                         |
+| `make build-api`    | —                      | Build only `apps/api`                         |
+| `make preview`      | —                      | Serve the production web build                |
+| `make start-api`    | —                      | Build and run the compiled API binary         |
+| `make generate`     | —                      | Regenerate the TanStack Router route tree     |
+| `make lint`         | `bun run lint`         | `oxlint` for TS/TSX, `go vet` for Go          |
+| `make lint-fix`     | `bun run lint:fix`     | Apply safe oxlint fixes                       |
+| `make format`       | `bun run format`       | `oxfmt` for the repo, `gofmt` for Go          |
+| `make format-check` | `bun run format:check` | Fail if anything is unformatted (CI friendly) |
+| `make typecheck`    | `bun run typecheck`    | `tsc --noEmit` for TS, `go build` for Go      |
+| `make test`         | `bun run test`         | Run every test suite                          |
+| `make test-api`     | —                      | Run only the Go tests                         |
+| `make check`        | —                      | format-check + lint + typecheck + test        |
+| `make clean`        | —                      | Remove build output and generated files       |
+| `make clean-all`    | `bun run clean`        | As above, plus `node_modules`                 |
+| `make versions`     | —                      | Print bun / go / turbo versions               |
 
-Scope a task to one workspace with Turbo filters:
+Scope a Turborepo-backed target to one workspace with `FILTER`:
+
+```bash
+make dev   FILTER=@repo/api
+make build FILTER=@repo/web
+make lint  FILTER=@repo/web
+```
+
+Or call Turbo directly:
 
 ```bash
 bunx turbo run dev --filter=@repo/api
