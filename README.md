@@ -208,6 +208,19 @@ secrets work too and are simpler if you'd rather not scope them:
 > **cannot** be referenced from workflow-level `env:`. The workflow therefore defines
 > `IMAGE_WEB`/`IMAGE_API` at job level, not at the top of the file.
 
+### Troubleshooting
+
+| Symptom                                              | Cause                                                                                        |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `Username and password required` (login step)        | Secret missing or an environment secret not visible to that job                              |
+| `denied: requested access to the resource is denied` | `ACR_REGISTRY` lacks the namespace (`<host>/<namespace>`), or the ACR repo doesn't exist yet |
+| `unauthorized: authentication required` at login     | Wrong ACR credentials (RAM AccessKey pair instead of ACR Access Credentials)                 |
+| `invalid reference format`                           | `ACR_REGISTRY` contains a scheme (`https://`)                                                |
+
+The `Verify ACR access before push` step checks the namespace format, rejects VPC-only endpoints
+and queries the registry for repository existence before pushing, so these fail with a specific
+message instead of the bare `denied`.
+
 On the ECS, once: install Docker + the compose plugin and create `~/app/.env` with
 `ALLOW_ORIGINS=https://your-domain.com`. Two private ACR repositories
 (`ali-ecs-docker-build-tutorial-web`, `ali-ecs-docker-build-tutorial-api`) must

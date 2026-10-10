@@ -111,6 +111,71 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
+      # ACR image names MUST be <host>/<namespace>/<repo>. A missing namespace
+      # (or a repo that was never created) makes the push fail with the opaque
+      # "denied: requested access to the resource is denied".
+      - name: Verify ACR access before push
+        env:
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        run: |
+          host="${IMAGE_WEB%%/*}"
+          repo_path="${IMAGE_WEB#*/}"
+          echo "registry host : $host"
+          echo "repository    : $repo_path"
+
+          # 1. The registry part of ACR_REGISTRY must carry the namespace
+          case "$repo_path" in
+            */*) ;;
+            *)
+              echo "::error::ACR_REGISTRY is missing the namespace."
+              echo "  It must look like <registry-host>/<namespace>,"
+              echo "  e.g. registry.cn-hangzhou.aliyuncs.com/my-namespace"
+              echo "  Without it the image resolves to $host/$repo_path,"
+              echo "  which is not a namespace your account owns."
+              exit 1
+              ;;
+          esac
+
+          # 2. GitHub-hosted runners sit outside the Aliyun VPC
+          case "$host" in
+            *-vpc.* | *.vpc.*)
+              echo "::error::'$host' is a VPC endpoint and is unreachable from GitHub runners."
+              echo "  Use the public endpoint: registry.<region>.aliyuncs.com"
+              exit 1
+              ;;
+          esac
+
+          # 3. Ask ACR whether the repo exists and these creds may write to it
+          tags_url="https://$host/v2/$repo_path/tags/list"
+          code=$(curl -s -o /tmp/tags.json -w '%{http_code}' \
+            -u "$ACR_USERNAME:$ACR_PASSWORD" "$tags_url" || true)
+          echo "GET $tags_url -> HTTP $code"
+
+          case "$code" in
+            200)
+              echo "Repository exists and is readable by these credentials."
+              ;;
+            401 | 403)
+              echo "::error::ACR denied access to '$repo_path' (HTTP $code)."
+              echo "  Credentials authenticated, but this namespace/repo is not"
+              echo "  writable by ACR_USERNAME. Verify the namespace in"
+              echo "  ACR_REGISTRY matches the one in the ACR console and that the"
+              echo "  account has push permission."
+              exit 1
+              ;;
+            404)
+              echo "::error::ACR repository '$repo_path' does not exist."
+              echo "  Create 'ali-ecs-docker-build-tutorial-web' and"
+              echo "  'ali-ecs-docker-build-tutorial-api' in the ACR console"
+              echo "  (as private repositories under that namespace)."
+              exit 1
+              ;;
+            *)
+              echo "::warning::Unexpected HTTP $code from ACR; continuing to push."
+              ;;
+          esac
+
       - name: Build frontend image
         run: |
           docker build -f apps/web/Dockerfile \
