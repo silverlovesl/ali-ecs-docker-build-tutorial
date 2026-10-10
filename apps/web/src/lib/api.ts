@@ -1,4 +1,8 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? ''
+// Same-origin deployments mount the API under the SPA's base path (e.g.
+// /tutorial), so default to it; VITE_API_URL points at a separate origin when
+// needed.
+const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, '')
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? BASE_URL
 
 export interface HealthResponse {
   status: string

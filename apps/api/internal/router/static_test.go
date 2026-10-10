@@ -42,7 +42,14 @@ func newDist(t *testing.T) string {
 	return dir
 }
 
-func newEngine(t *testing.T, webDir string) *gin.Engine {
+func newEngine(t *testing.T, webDir string) http.Handler {
+	t.Helper()
+
+	return newEngineAt(t, webDir, "")
+}
+
+// newEngineAt builds a handler that is also mounted under basePath.
+func newEngineAt(t *testing.T, webDir, basePath string) http.Handler {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -52,10 +59,11 @@ func newEngine(t *testing.T, webDir string) *gin.Engine {
 		Port:         "0",
 		AllowOrigins: []string{"http://localhost:3000"},
 		WebDir:       webDir,
+		BasePath:     basePath,
 	})
 }
 
-func get(t *testing.T, engine *gin.Engine, path string) *httptest.ResponseRecorder {
+func get(t *testing.T, engine http.Handler, path string) *httptest.ResponseRecorder {
 	t.Helper()
 
 	recorder := httptest.NewRecorder()
@@ -147,6 +155,62 @@ func TestStaticDoesNotShadowAPI(t *testing.T) {
 	}
 	if strings.Contains(recorder.Body.String(), indexMarker) {
 		t.Fatalf("the API route must win over static serving, got %q", recorder.Body.String())
+	}
+}
+
+func TestStaticServesUnderBasePath(t *testing.T) {
+	engine := newEngineAt(t, newDist(t), "/tutorial")
+
+	// The SPA shell answers under the prefix, both with and without the slash.
+	for _, path := range []string{"/tutorial", "/tutorial/"} {
+		recorder := get(t, engine, path)
+		if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), indexMarker) {
+			t.Fatalf("%s: expected the SPA shell, got %d %q", path, recorder.Code, recorder.Body.String())
+		}
+	}
+
+	// Hashed assets keep their immutable cache header when fetched via the prefix.
+	asset := get(t, engine, "/tutorial/assets/app.js")
+	if asset.Code != http.StatusOK || !strings.Contains(asset.Body.String(), "bundled") {
+		t.Fatalf("expected the bundled asset under /tutorial/, got %d %q", asset.Code, asset.Body.String())
+	}
+	if got := asset.Header().Get("Cache-Control"); !strings.Contains(got, "immutable") {
+		t.Fatalf("expected hashed assets to be immutable, got Cache-Control %q", got)
+	}
+
+	// API routes are reachable under the prefix too.
+	if code := get(t, engine, "/tutorial/tutorial-api/health").Code; code != http.StatusOK {
+		t.Fatalf("expected the API under /tutorial/, got %d", code)
+	}
+
+	// Unknown prefixed API paths stay JSON instead of falling back to the shell.
+	missing := get(t, engine, "/tutorial/tutorial-api/nope")
+	if missing.Code != http.StatusNotFound || strings.Contains(missing.Body.String(), indexMarker) {
+		t.Fatalf("expected a JSON 404 under /tutorial/, got %d %q", missing.Code, missing.Body.String())
+	}
+
+	// A missing hashed asset under the prefix is a real 404, not the shell.
+	stale := get(t, engine, "/tutorial/assets/stale.js")
+	if stale.Code != http.StatusNotFound || strings.Contains(stale.Body.String(), indexMarker) {
+		t.Fatalf("expected a 404 for a stale prefixed asset, got %d %q", stale.Code, stale.Body.String())
+	}
+}
+
+func TestStaticBasePathOnlyMatchesPathBoundary(t *testing.T) {
+	dir := newDist(t)
+	// A sibling directory whose name starts with the mount prefix.
+	if err := os.MkdirAll(filepath.Join(dir, "tutorials"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "tutorials", "list.txt"), []byte("list"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	engine := newEngineAt(t, dir, "/tutorial")
+
+	recorder := get(t, engine, "/tutorials/list.txt")
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), "list") {
+		t.Fatalf("expected /tutorials/list.txt to be served, got %d %q", recorder.Code, recorder.Body.String())
 	}
 }
 

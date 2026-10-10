@@ -19,6 +19,10 @@ type Config struct {
 	// production image ships as a single process. Empty disables static serving
 	// so that `vite dev` keeps owning the frontend during development.
 	WebDir string
+	// BasePath is an optional URL prefix the app is mounted under, e.g. "/tutorial".
+	// It lets one image serve correctly both directly at the root and behind a
+	// reverse proxy that forwards the prefix unchanged. Empty means root.
+	BasePath string
 }
 
 // Load reads configuration from environment variables and applies safe defaults
@@ -29,7 +33,23 @@ func Load() Config {
 		Port:         getEnv("PORT", "8080"),
 		AllowOrigins: splitAndTrim(getEnv("ALLOW_ORIGINS", "http://localhost:3000")),
 		WebDir:       getEnv("WEB_DIR", ""),
+		BasePath:     normalizeBasePath(getEnv("WEB_BASE_PATH", "")),
 	}
+}
+
+// normalizeBasePath turns a configured prefix into a canonical "/tutorial" form:
+// leading slash, no trailing slash, and "" for the root.
+func normalizeBasePath(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" || trimmed == "/" {
+		return ""
+	}
+
+	if !strings.HasPrefix(trimmed, "/") {
+		trimmed = "/" + trimmed
+	}
+
+	return strings.TrimRight(trimmed, "/")
 }
 
 func getEnv(key, fallback string) string {

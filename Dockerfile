@@ -11,6 +11,13 @@
 # ---- 1. frontend: Bun builds the SPA ---------------------------------------
 FROM oven/bun:1.4-alpine AS web
 
+# Public mount point of the SPA. The ECS nginx serves it under /tutorial/ (and
+# strips the prefix before proxying to the container), so the bundle must
+# reference /tutorial/assets/... instead of /assets/... Override with
+# `--build-arg` to build an image meant to be served from the domain root.
+ARG VITE_BASE_PATH=/tutorial/
+ENV VITE_BASE_PATH=$VITE_BASE_PATH
+
 WORKDIR /app
 
 # Install workspace dependencies first (better layer caching).
@@ -46,7 +53,8 @@ COPY --from=web /app/apps/web/dist /app/public
 
 ENV APP_ENV=production \
     PORT=8080 \
-    WEB_DIR=/app/public
+    WEB_DIR=/app/public \
+    WEB_BASE_PATH=/tutorial
 
 USER appuser
 EXPOSE 8080

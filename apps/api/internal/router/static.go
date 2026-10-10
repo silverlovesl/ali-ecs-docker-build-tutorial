@@ -19,7 +19,8 @@ const assetsPrefix = "/assets/"
 
 // registerStaticFiles serves a built single-page app from dir. Real files are
 // returned as-is; any other path falls back to index.html so that client-side
-// routes survive a hard refresh.
+// routes survive a hard refresh. A configured base path has already been
+// stripped by the time requests reach here (see stripBasePath in router.go).
 //
 // Two things are deliberately not swallowed by the SPA fallback:
 //

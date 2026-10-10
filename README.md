@@ -155,12 +155,13 @@ Re-install the hooks manually with `bun run prepare`.
 
 Copy `apps/api/.env.example` to `apps/api/.env` and adjust as needed:
 
-| Variable        | Default                 | Description                                             |
-| --------------- | ----------------------- | ------------------------------------------------------- |
-| `APP_ENV`       | `development`           | `development` / `staging` / `production`                |
-| `PORT`          | `8080`                  | HTTP port (serves the API and, with `WEB_DIR`, the SPA) |
-| `ALLOW_ORIGINS` | `http://localhost:3000` | Comma-separated CORS allow list                         |
-| `WEB_DIR`       | _empty_                 | Directory of a built SPA to serve; empty disables it    |
+| Variable        | Default                 | Description                                                          |
+| --------------- | ----------------------- | -------------------------------------------------------------------- |
+| `APP_ENV`       | `development`           | `development` / `staging` / `production`                             |
+| `PORT`          | `8080`                  | HTTP port (serves the API and, with `WEB_DIR`, the SPA)              |
+| `ALLOW_ORIGINS` | `http://localhost:3000` | Comma-separated CORS allow list                                      |
+| `WEB_DIR`       | _empty_                 | Directory of a built SPA to serve; empty disables it                 |
+| `WEB_BASE_PATH` | _empty_                 | URL prefix the app is mounted under (e.g. `/tutorial`); empty = root |
 
 ## Docker
 
@@ -174,9 +175,18 @@ The Go server serves **both** the API and the frontend (`WEB_DIR`), so productio
 process on a single port. Run it locally:
 
 ```bash
-make docker-up      # docker compose up -d --build  -> http://localhost:8080
+make docker-up      # docker compose up -d --build  (http://localhost:8080 + /tutorial/)
 docker compose logs -f
 make docker-down
+```
+
+The SPA is built for a `/tutorial/` mount (`VITE_BASE_PATH`, default `/tutorial/`) to match the host
+nginx, and the Go server accepts requests under both `/` and `/tutorial/...` (`WEB_BASE_PATH`), so
+the container works with or without a prefix-stripping proxy. Override the mount when building for
+the domain root:
+
+```bash
+docker build --build-arg VITE_BASE_PATH=/ -t ali-ecs-docker-build-tutorial:latest .
 ```
 
 The image is named `ali-ecs-docker-build-tutorial` — it is the whole application, since the Go
@@ -241,20 +251,35 @@ On the ECS, once: install Docker + the compose plugin and create `~/app/.env` wi
 `ALLOW_ORIGINS=https://your-domain.com`. One private ACR repository
 (`ali-ecs-docker-build-tutorial`) must exist under the namespace.
 
-Host nginx (already terminating SSL) forwards everything to the single container — the SPA and the
-JSON API share one port now:
+Host nginx (already terminating SSL) forwards to the single container — the SPA and the JSON API
+share one port. The ECS exposes the app under `/tutorial/`, so mount it there; the trailing slash on
+`proxy_pass` strips the prefix before forwarding:
 
 ```nginx
 # optional but recommended: the Go server does not compress responses
 gzip on;
 gzip_types text/css application/javascript application/json image/svg+xml;
 
+location /tutorial/ {
+    proxy_pass http://127.0.0.1:8080/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+}
+```
+
+To serve the app from the domain root instead, proxy everything and build the image with
+`--build-arg VITE_BASE_PATH=/`:
+
+```nginx
 location / {
     proxy_pass http://127.0.0.1:8080;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
 }
 ```
+
+The Go server is prefix-aware, so even a root proxy works with the default `/tutorial/` build:
+asset and API requests under `/tutorial/...` are resolved against the same files and routes.
 
 Because everything is same-origin, `ALLOW_ORIGINS` mainly matters if you also call the API from
 another domain; `WEB_DIR=/app/public` is what enables the SPA and is already set in the image.

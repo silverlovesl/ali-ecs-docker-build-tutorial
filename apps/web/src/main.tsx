@@ -18,8 +18,13 @@ const queryClient = new QueryClient({
   },
 })
 
+// Vite exposes the configured `base` as BASE_URL, always with a trailing slash
+// ("/tutorial/"); TanStack Router wants it without one.
+const basepath = import.meta.env.BASE_URL.replace(/\/$/, '')
+
 const router = createRouter({
   routeTree,
+  basepath,
   context: { queryClient },
   defaultPreload: 'intent',
   scrollRestoration: true,

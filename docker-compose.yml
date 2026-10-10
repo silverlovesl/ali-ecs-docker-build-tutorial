@@ -2,8 +2,14 @@
 # port 8080 and binds to 127.0.0.1 only — the host nginx (SSL termination) is
 # the public entry point and proxies everything here.
 #
-#   https://your-domain/                -> 127.0.0.1:8080  (SPA)
-#   https://your-domain/tutorial-api/*  -> 127.0.0.1:8080  (JSON API)
+# The ECS mounts the app under /tutorial/ (nginx strips that prefix when
+# proxying):
+#
+#   https://your-domain/tutorial/                -> 127.0.0.1:8080  (SPA)
+#   https://your-domain/tutorial/tutorial-api/*  -> 127.0.0.1:8080  (JSON API)
+#
+# The container is prefix-aware, so the same image also works when proxied from
+# the domain root (`https://your-domain/`).
 #
 # Optional overrides via a .env file next to this compose file:
 #   ALLOW_ORIGINS=https://your-domain.com
@@ -20,6 +26,10 @@ services:
       APP_ENV: production
       PORT: 8080
       WEB_DIR: /app/public
+      # The SPA is built with Vite base `/tutorial/` to match the host nginx
+      # mount. The Go server accepts both `/` and `/tutorial/...`, so this also
+      # keeps a direct `http://localhost:8080/` working without nginx.
+      WEB_BASE_PATH: /tutorial
       ALLOW_ORIGINS: ${ALLOW_ORIGINS:-http://localhost:3000}
     ports:
       - '127.0.0.1:8080:8080'
