@@ -227,6 +227,60 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # drone-scp/ssh-action only report "ssh.ParsePrivateKey: ssh: no key found",
+      # which hides the real cause: the secret is empty, holds a public key, or
+      # arrived without its newlines. Check the shape before using it.
+      - name: Verify ECS secrets are visible to this job
+        env:
+          ECS_HOST: ${{ secrets.ECS_HOST }}
+          ECS_USER: ${{ secrets.ECS_USER }}
+          ECS_SSH_KEY: ${{ secrets.ECS_SSH_KEY }}
+        run: |
+          failed=0
+          for name in ECS_HOST ECS_USER ECS_SSH_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is empty for this job."
+              echo "  Store it in the 'prod' environment or as a repository secret,"
+              echo "  and make sure this job declares that environment."
+              failed=1
+            fi
+          done
+          [ "$failed" = "0" ] || exit 1
+
+          case "$ECS_SSH_KEY" in
+            # Must come first: escaped newlines still contain the marker below.
+            *'\n'*)
+              echo "::error::ECS_SSH_KEY contains literal backslash-n sequences."
+              echo "  The value was set with escaped newlines instead of real ones."
+              echo "  Re-set it from the file, which preserves them:"
+              echo "    gh secret set ECS_SSH_KEY --env prod < ~/.ssh/id_ed25519"
+              exit 1
+              ;;
+            *"PRIVATE KEY-----"*)
+              ;;
+            *"ssh-rsa "* | *"ssh-ed25519 "* | *"ecdsa-sha2-"*)
+              echo "::error::ECS_SSH_KEY holds a PUBLIC key."
+              echo "  The public key belongs in ~/.ssh/authorized_keys on the ECS;"
+              echo "  the secret needs the matching PRIVATE key."
+              exit 1
+              ;;
+            *"PuTTY-User-Key-File"*)
+              echo "::error::ECS_SSH_KEY is a PuTTY .ppk file."
+              echo "  Convert it: puttygen key.ppk -O private-openssh -o key.pem"
+              exit 1
+              ;;
+            *)
+              echo "::error::ECS_SSH_KEY has no PEM/OpenSSH 'PRIVATE KEY' marker."
+              echo "  Usual causes: the BEGIN/END lines were left out, or the key was"
+              echo "  pasted through something that mangled its newlines."
+              echo "  Re-set it from the file:"
+              echo "    gh secret set ECS_SSH_KEY --env prod < ~/.ssh/id_ed25519"
+              exit 1
+              ;;
+          esac
+
+          echo "ECS_SSH_KEY looks like a private key, ECS_HOST and ECS_USER are set."
+
       - name: Copy compose file to ECS
         uses: appleboy/scp-action@v1
         with:
