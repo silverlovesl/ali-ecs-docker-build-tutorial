@@ -194,15 +194,15 @@ Required secrets — stored in the GitHub environment named **`prod`**
 (_Settings → Environments → prod_), which the `build` and `deploy` jobs declare. Repository-level
 secrets work too and are simpler if you'd rather not scope them:
 
-| Secret         | Value                                                       |
-| -------------- | ----------------------------------------------------------- |
-| `ECS_HOST`     | Public IP of the ECS                                        |
-| `ECS_USER`     | SSH user (`root` or a deploy user)                          |
-| `ECS_SSH_KEY`  | Private key whose public key is in `~/.ssh/authorized_keys` |
-| `ECS_PORT`     | SSH port (optional, defaults to `22`)                       |
-| `ACR_REGISTRY` | e.g. `registry.cn-hangzhou.aliyuncs.com/my-namespace`       |
-| `ACR_USERNAME` | ACR access credential username                              |
-| `ACR_PASSWORD` | ACR access credential password                              |
+| Secret         | Value                                                                                                                                                                                           |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ECS_HOST`     | Public IP of the ECS                                                                                                                                                                            |
+| `ECS_USER`     | SSH user (`root` or a deploy user)                                                                                                                                                              |
+| `ECS_SSH_KEY`  | Private key whose public key is in `~/.ssh/authorized_keys`                                                                                                                                     |
+| `ECS_PORT`     | SSH port (optional, defaults to `22`)                                                                                                                                                           |
+| `ACR_REGISTRY` | Registry **including the namespace**: `registry.cn-hangzhou.aliyuncs.com/my-namespace`, or for a personal/enterprise instance `crpi-xxxxxxxx.cn-shanghai.personal.cr.aliyuncs.com/my-namespace` |
+| `ACR_USERNAME` | ACR access credential username                                                                                                                                                                  |
+| `ACR_PASSWORD` | ACR access credential password                                                                                                                                                                  |
 
 > Environment secrets are only readable inside jobs that declare that environment, and they
 > **cannot** be referenced from workflow-level `env:`. The workflow therefore defines

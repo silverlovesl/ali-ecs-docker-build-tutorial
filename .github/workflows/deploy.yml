@@ -129,8 +129,9 @@ jobs:
             */*) ;;
             *)
               echo "::error::ACR_REGISTRY is missing the namespace."
-              echo "  It must look like <registry-host>/<namespace>,"
-              echo "  e.g. registry.cn-hangzhou.aliyuncs.com/my-namespace"
+              echo "  It must look like <registry-host>/<namespace>:"
+              echo "    classic        registry.cn-hangzhou.aliyuncs.com/my-namespace"
+              echo "    personal/EE    crpi-xxxxxxxx.cn-shanghai.personal.cr.aliyuncs.com/my-namespace"
               echo "  Without it the image resolves to $host/$repo_path,"
               echo "  which is not a namespace your account owns."
               exit 1
