@@ -43,7 +43,7 @@ function HomePage() {
           <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-300">
             API status
           </h2>
-          <span className="font-mono text-xs text-slate-500">GET /api/health</span>
+          <span className="font-mono text-xs text-slate-500">GET /tutorial-api/health</span>
         </div>
 
         <div className="mt-4 font-mono text-sm">

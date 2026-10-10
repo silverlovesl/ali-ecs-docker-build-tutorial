@@ -22,7 +22,7 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      '/api': {
+      '/tutorial-api': {
         target: apiTarget,
         changeOrigin: true,
       },

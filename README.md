@@ -37,9 +37,9 @@ make dev             # runs apps/web and apps/api in parallel
 ```
 
 - Web: http://localhost:3000
-- API: http://localhost:8080 (`/api/health`, `/api/hello`, `/healthz`)
+- API: http://localhost:8080 (`/tutorial-api/health`, `/tutorial-api/hello`, `/healthz`)
 
-Vite proxies `/api/*` to the Go server, so the frontend can call the API with relative URLs during
+Vite proxies `/tutorial-api/*` to the Go server, so the frontend can call the API with relative URLs during
 development. Override the proxy target with `VITE_API_PROXY_TARGET`, and the production API origin
 with `VITE_API_URL`.
 
@@ -160,6 +160,69 @@ Copy `apps/api/.env.example` to `apps/api/.env` and adjust as needed:
 | `APP_ENV`       | `development`           | `development` / `staging` / `production` |
 | `PORT`          | `8080`                  | API port                                 |
 | `ALLOW_ORIGINS` | `http://localhost:3000` | Comma-separated CORS allow list          |
+
+## Docker
+
+Two images are defined:
+
+- `apps/web/Dockerfile` — Bun builds the SPA, `nginx:alpine` serves it (port 80)
+- `apps/api/Dockerfile` — Go builds a static binary, minimal `alpine` runs it (port 8080)
+
+Run the whole stack locally:
+
+```bash
+make docker-up      # docker compose up -d --build  -> http://localhost:3001
+docker compose logs -f
+make docker-down
+```
+
+`docker-compose.yml` is the **production** file (image names only, no build context).
+`docker-compose.override.yml` adds the local build contexts and is merged automatically by
+docker compose; it is never copied to the server. Containers bind to `127.0.0.1` only — the host
+nginx is the public entry point.
+
+## Deployment (GitHub Actions → Aliyun ECS)
+
+`.github/workflows/deploy.yml` runs on every push to `main`:
+
+```
+GitHub push -> lint & test -> docker build -> push to ACR (latest + github.sha)
+            -> SSH to ECS -> docker login ACR -> docker pull -> compose up -d -> health check
+```
+
+Required repository secrets:
+
+| Secret         | Value                                                       |
+| -------------- | ----------------------------------------------------------- |
+| `ECS_HOST`     | Public IP of the ECS                                        |
+| `ECS_USER`     | SSH user (`root` or a deploy user)                          |
+| `ECS_SSH_KEY`  | Private key whose public key is in `~/.ssh/authorized_keys` |
+| `ECS_PORT`     | SSH port (optional, defaults to `22`)                       |
+| `ACR_REGISTRY` | e.g. `registry.cn-hangzhou.aliyuncs.com/my-namespace`       |
+| `ACR_USERNAME` | ACR access credential username                              |
+| `ACR_PASSWORD` | ACR access credential password                              |
+
+On the ECS, once: install Docker + the compose plugin and create `~/app/.env` with
+`ALLOW_ORIGINS=https://your-domain.com`. Two private ACR repositories
+(`ali-ecs-docker-build-tutorial-web`, `ali-ecs-docker-build-tutorial-api`) must
+exist under the namespace.
+
+Host nginx (already terminating SSL) proxies to the containers:
+
+```nginx
+location /tutorial-api/ {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+}
+
+location / {
+    proxy_pass http://127.0.0.1:3001;
+    proxy_set_header Host $host;
+}
+```
+
+Only ports `22`, `80` and `443` need to be open in the Aliyun security group.
 
 ## Adding a package
 

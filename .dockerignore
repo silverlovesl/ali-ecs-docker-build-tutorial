@@ -1,0 +1,16 @@
+# Keep the web image build context small (context = repository root).
+# NOTE: do NOT exclude anything under packages/ or apps/web — bun.lock lists
+# every workspace and `bun install --frozen-lockfile` fails if one is missing.
+.git
+.github
+node_modules
+**/node_modules
+**/dist
+**/bin
+**/build
+**/.turbo
+**/tmp
+apps/api
+*.md
+Makefile
+lefthook.yml

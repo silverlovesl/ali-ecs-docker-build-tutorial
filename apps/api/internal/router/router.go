@@ -26,7 +26,7 @@ func New(cfg config.Config) *gin.Engine {
 
 	health := handler.NewHealthHandler(cfg)
 
-	api := engine.Group("/api")
+	api := engine.Group("/tutorial-api")
 	{
 		api.GET("/health", health.Get)
 		api.GET("/hello", health.Hello)

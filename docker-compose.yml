@@ -1,0 +1,27 @@
+# Runs on the ECS host. Containers bind to 127.0.0.1 only —
+# the host nginx (SSL termination) is the public entry point.
+#
+#   web -> 127.0.0.1:3001  (proxy_pass for the SPA)
+#   api -> 127.0.0.1:8080  (proxy_pass for /tutorial-api)
+#
+# Optional overrides via a .env file next to this compose file:
+#   ALLOW_ORIGINS=https://your-domain.com
+
+services:
+  web:
+    image: ali-ecs-docker-build-tutorial-web:latest
+    container_name: ali-ecs-docker-build-tutorial-web
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:3001:80'
+
+  api:
+    image: ali-ecs-docker-build-tutorial-api:latest
+    container_name: ali-ecs-docker-build-tutorial-api
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      PORT: 8080
+      ALLOW_ORIGINS: ${ALLOW_ORIGINS:-http://localhost:3000}
+    ports:
+      - '127.0.0.1:8080:8080'

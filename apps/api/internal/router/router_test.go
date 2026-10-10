@@ -22,7 +22,7 @@ func TestHealthEndpoint(t *testing.T) {
 	})
 
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	request := httptest.NewRequest(http.MethodGet, "/tutorial-api/health", nil)
 	engine.ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusOK {
@@ -49,7 +49,7 @@ func TestCORSPreflight(t *testing.T) {
 	})
 
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodOptions, "/api/health", nil)
+	request := httptest.NewRequest(http.MethodOptions, "/tutorial-api/health", nil)
 	request.Header.Set("Origin", "http://localhost:3000")
 	engine.ServeHTTP(recorder, request)
 

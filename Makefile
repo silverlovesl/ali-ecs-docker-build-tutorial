@@ -31,6 +31,7 @@ C_CYAN  := \033[36m
         dev dev-web dev-api \
         build build-web build-api preview start-api generate \
         lint lint-fix format format-check typecheck test test-api check \
+        docker-build docker-up docker-down docker-logs \
         clean clean-all versions
 
 ##@ Setup
@@ -73,6 +74,20 @@ start-api: build-api ## Build and run the compiled API binary
 
 generate: ## Regenerate the TanStack Router route tree
 	cd $(WEB) && $(BUN)x --bun tsr generate
+
+##@ Docker
+
+docker-build: ## Build both images locally (ali-ecs-docker-build-tutorial-web, -api)
+	docker compose build
+
+docker-up: ## Build if needed and start both containers (http://localhost:3001)
+	docker compose up -d --build
+
+docker-down: ## Stop and remove the containers
+	docker compose down
+
+docker-logs: ## Follow container logs
+	docker compose logs -f
 
 ##@ Quality
 

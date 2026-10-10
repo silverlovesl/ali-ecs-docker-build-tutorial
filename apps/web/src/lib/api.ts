@@ -34,5 +34,5 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export function getHealth(signal?: AbortSignal): Promise<HealthResponse> {
-  return request<HealthResponse>('/api/health', { signal })
+  return request<HealthResponse>('/tutorial-api/health', { signal })
 }
