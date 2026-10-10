@@ -179,8 +179,8 @@ docker compose logs -f
 make docker-down
 ```
 
-The image name stays `ali-ecs-docker-build-tutorial-api` for continuity with the ACR repository
-created earlier — it now contains the frontend as well.
+The image is named `ali-ecs-docker-build-tutorial` — it is the whole application, since the Go
+server serves the SPA as well as the JSON API.
 
 `docker-compose.yml` is the **production** file (image name only, no build context).
 `docker-compose.override.yml` adds the local build context and is merged automatically by docker
@@ -201,7 +201,7 @@ GitHub push -> lint & test -> docker build -> push to ACR (latest + github.sha)
 ```
 
 One image is built and pushed, so there is exactly one ACR repository to create
-(`ali-ecs-docker-build-tutorial-api`).
+(`ali-ecs-docker-build-tutorial`).
 
 Required secrets — stored in the GitHub environment named **`prod`**
 (_Settings → Environments → prod_), which the `build` and `deploy` jobs declare. Repository-level
@@ -239,7 +239,7 @@ authoritative test.
 
 On the ECS, once: install Docker + the compose plugin and create `~/app/.env` with
 `ALLOW_ORIGINS=https://your-domain.com`. One private ACR repository
-(`ali-ecs-docker-build-tutorial-api`) must exist under the namespace.
+(`ali-ecs-docker-build-tutorial`) must exist under the namespace.
 
 Host nginx (already terminating SSL) forwards everything to the single container — the SPA and the
 JSON API share one port now:

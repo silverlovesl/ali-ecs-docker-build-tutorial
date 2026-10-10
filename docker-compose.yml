@@ -8,13 +8,13 @@
 # Optional overrides via a .env file next to this compose file:
 #   ALLOW_ORIGINS=https://your-domain.com
 #
-# The image keeps its historical `-api` name so the existing ACR repository
-# still works; it now contains the frontend as well.
+# The image is named after the project itself because it is the whole app: the
+# Go server serves the SPA as well as the JSON API.
 
 services:
   app:
-    image: ali-ecs-docker-build-tutorial-api:latest
-    container_name: ali-ecs-docker-build-tutorial-api
+    image: ali-ecs-docker-build-tutorial:latest
+    container_name: ali-ecs-docker-build-tutorial
     restart: unless-stopped
     environment:
       APP_ENV: production

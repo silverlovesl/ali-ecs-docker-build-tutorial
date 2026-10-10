@@ -24,7 +24,7 @@
 #    ACR_PASSWORD    ACR password (fixed password or RAM user credential)
 #
 #  ACR prerequisites: create ONE private repository under the namespace:
-#    ali-ecs-docker-build-tutorial-api -> full image: $ACR_REGISTRY/ali-ecs-docker-build-tutorial-api:<tag>
+#    ali-ecs-docker-build-tutorial -> full image: $ACR_REGISTRY/ali-ecs-docker-build-tutorial:<tag>
 #  It serves both the SPA and the JSON API (the Go server also serves the built
 #  frontend), so a second repository is no longer needed.
 # =============================================================================
@@ -80,7 +80,7 @@ jobs:
     # If a protection rule requires reviewers, it will also gate this job.
     environment: prod
     env:
-      IMAGE: ${{ secrets.ACR_REGISTRY }}/ali-ecs-docker-build-tutorial-api
+      IMAGE: ${{ secrets.ACR_REGISTRY }}/ali-ecs-docker-build-tutorial
     steps:
       - uses: actions/checkout@v4
 
@@ -194,7 +194,7 @@ jobs:
               echo "::warning::ACR answered HTTP $code for '$repo_path'."
               echo "  Either the repository does not exist yet, or ACR_USERNAME"
               echo "  has no access to this namespace. If the push below fails,"
-              echo "  create 'ali-ecs-docker-build-tutorial-api' under the"
+              echo "  create 'ali-ecs-docker-build-tutorial' under the"
               echo "  namespace in the ACR console and check the account's push"
               echo "  permission."
               ;;
@@ -202,7 +202,7 @@ jobs:
               echo "::warning::ACR repository '$repo_path' was not found (HTTP 404)."
               echo "  This is often fine: personal-edition ACR creates the"
               echo "  repository on first push. If the push below fails, create"
-              echo "  'ali-ecs-docker-build-tutorial-api' in the ACR console."
+              echo "  'ali-ecs-docker-build-tutorial' in the ACR console."
               ;;
             *)
               echo "::warning::Unexpected HTTP $code from ACR; continuing to push."
@@ -223,7 +223,7 @@ jobs:
     needs: build
     environment: prod
     env:
-      IMAGE: ${{ secrets.ACR_REGISTRY }}/ali-ecs-docker-build-tutorial-api
+      IMAGE: ${{ secrets.ACR_REGISTRY }}/ali-ecs-docker-build-tutorial
     steps:
       - uses: actions/checkout@v4
 
@@ -269,7 +269,7 @@ jobs:
             docker pull "$IMAGE:$IMAGE_TAG"
 
             # retag to the name docker-compose.yml expects
-            docker tag "$IMAGE:$IMAGE_TAG" ali-ecs-docker-build-tutorial-api:latest
+            docker tag "$IMAGE:$IMAGE_TAG" ali-ecs-docker-build-tutorial:latest
 
             # stop changed containers -> start with the new image
             cd ${{ env.DEPLOY_DIR }}
@@ -296,7 +296,7 @@ jobs:
               if [ "$i" = "10" ]; then
                 echo "API health check failed"
                 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
-                docker logs --tail 50 ali-ecs-docker-build-tutorial-api
+                docker logs --tail 50 ali-ecs-docker-build-tutorial
                 exit 1
               fi
             done
@@ -307,6 +307,6 @@ jobs:
             else
               echo "SPA shell missing from the root route"
               curl -sS -o /dev/null -w 'GET / -> %{http_code}\n' http://127.0.0.1:8080/
-              docker logs --tail 50 ali-ecs-docker-build-tutorial-api
+              docker logs --tail 50 ali-ecs-docker-build-tutorial
               exit 1
             fi

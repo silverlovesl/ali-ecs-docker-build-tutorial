@@ -1,7 +1,7 @@
 # =============================================================================
 #  Single deployment image: the Go API also serves the built frontend.
 #
-#    docker build -t ali-ecs-docker-build-tutorial-api:latest .
+#    docker build -t ali-ecs-docker-build-tutorial:latest .
 #
 #  Build context must be the repository root (Bun needs the workspace lockfile,
 #  Go needs apps/api). One image, one process, one port — the host nginx
