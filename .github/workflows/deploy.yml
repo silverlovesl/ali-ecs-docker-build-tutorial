@@ -111,9 +111,9 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
-      # ACR image names MUST be <host>/<namespace>/<repo>. A missing namespace
-      # (or a repo that was never created) makes the push fail with the opaque
-      # "denied: requested access to the resource is denied".
+      # ACR image names MUST be <host>/<namespace>/<repo>. A missing namespace,
+      # a repo that was never created, or probing with the wrong auth flow all
+      # surface as the opaque "denied: requested access to the resource is denied".
       - name: Verify ACR access before push
         env:
           ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
@@ -147,30 +147,63 @@ jobs:
               ;;
           esac
 
-          # 3. Ask ACR whether the repo exists and these creds may write to it
-          tags_url="https://$host/v2/$repo_path/tags/list"
-          code=$(curl -s -o /tmp/tags.json -w '%{http_code}' \
-            -u "$ACR_USERNAME:$ACR_PASSWORD" "$tags_url" || true)
-          echo "GET $tags_url -> HTTP $code"
+          # 3. Bearer-token handshake — the same flow `docker push` uses.
+          #    A repository endpoint rejects basic auth with 401 even when the
+          #    credentials are valid, so probing it directly yields false errors.
+          headers=$(curl -s -o /dev/null -D - "https://$host/v2/" || true)
+          realm=$(printf '%s' "$headers" | tr -d '\r' \
+            | sed -n 's/.*realm="\([^"]*\)".*/\1/p' | head -n1)
+          service=$(printf '%s' "$headers" | tr -d '\r' \
+            | sed -n 's/.*service="\([^"]*\)".*/\1/p' | head -n1)
 
+          if [ -z "$realm" ]; then
+            echo "::warning::ACR sent no token challenge; probing with basic auth."
+            code=$(curl -s -o /dev/null -w '%{http_code}' \
+              -u "$ACR_USERNAME:$ACR_PASSWORD" \
+              "https://$host/v2/$repo_path/tags/list" || true)
+            echo "GET /v2/$repo_path/tags/list -> HTTP $code (basic auth)"
+          else
+            echo "token realm   : $realm"
+            tcode=$(curl -s -o /tmp/acr-token.json -w '%{http_code}' \
+              -u "$ACR_USERNAME:$ACR_PASSWORD" \
+              "$realm?service=$service&scope=repository:$repo_path:pull" || true)
+            token=$(python3 -c 'import json; d=json.load(open("/tmp/acr-token.json")); print(d.get("token") or d.get("access_token") or "")' 2>/dev/null || true)
+
+            if [ -z "$token" ]; then
+              echo "::warning::Token request returned HTTP $tcode; probe inconclusive."
+              echo "  Response: $(head -c 300 /tmp/acr-token.json 2>/dev/null | tr -d '\n')"
+              echo "  Continuing — the push below is the authoritative test."
+              exit 0
+            fi
+
+            code=$(curl -s -o /dev/null -w '%{http_code}' \
+              -H "Authorization: Bearer $token" \
+              "https://$host/v2/$repo_path/tags/list" || true)
+            echo "GET /v2/$repo_path/tags/list -> HTTP $code (bearer auth)"
+          fi
+
+          # The probe below is advisory only. A repository endpoint can answer
+          # 401/404 for a repo that simply has not been created yet — and ACR
+          # creates repos on first push — so it must never fail the job. The
+          # push itself stays the authoritative test; this just explains it.
           case "$code" in
             200)
               echo "Repository exists and is readable by these credentials."
               ;;
             401 | 403)
-              echo "::error::ACR denied access to '$repo_path' (HTTP $code)."
-              echo "  Credentials authenticated, but this namespace/repo is not"
-              echo "  writable by ACR_USERNAME. Verify the namespace in"
-              echo "  ACR_REGISTRY matches the one in the ACR console and that the"
-              echo "  account has push permission."
-              exit 1
+              echo "::warning::ACR answered HTTP $code for '$repo_path'."
+              echo "  Either the repository does not exist yet, or ACR_USERNAME"
+              echo "  has no access to this namespace. If the push below fails,"
+              echo "  create 'ali-ecs-docker-build-tutorial-web' and"
+              echo "  'ali-ecs-docker-build-tutorial-api' under the namespace in the"
+              echo "  ACR console and check the account's push permission."
               ;;
             404)
-              echo "::error::ACR repository '$repo_path' does not exist."
-              echo "  Create 'ali-ecs-docker-build-tutorial-web' and"
-              echo "  'ali-ecs-docker-build-tutorial-api' in the ACR console"
-              echo "  (as private repositories under that namespace)."
-              exit 1
+              echo "::warning::ACR repository '$repo_path' was not found (HTTP 404)."
+              echo "  This is often fine: personal-edition ACR creates the"
+              echo "  repository on first push. If the push below fails, create"
+              echo "  'ali-ecs-docker-build-tutorial-web' and"
+              echo "  'ali-ecs-docker-build-tutorial-api' in the ACR console."
               ;;
             *)
               echo "::warning::Unexpected HTTP $code from ACR; continuing to push."

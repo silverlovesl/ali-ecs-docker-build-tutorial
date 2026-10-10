@@ -217,9 +217,12 @@ secrets work too and are simpler if you'd rather not scope them:
 | `unauthorized: authentication required` at login     | Wrong ACR credentials (RAM AccessKey pair instead of ACR Access Credentials)                 |
 | `invalid reference format`                           | `ACR_REGISTRY` contains a scheme (`https://`)                                                |
 
-The `Verify ACR access before push` step checks the namespace format, rejects VPC-only endpoints
-and queries the registry for repository existence before pushing, so these fail with a specific
-message instead of the bare `denied`.
+The `Verify ACR access before push` step fails the job only on configuration errors — a missing
+namespace in `ACR_REGISTRY`, or a VPC-only endpoint. Its registry probe performs the same
+bearer-token handshake as `docker push` and reports the outcome (readable / repo missing / no
+access), but it is **advisory**: a repository endpoint also answers `401`/`404` for a repo that has
+simply not been created yet, and ACR creates repos on first push, so the push itself remains the
+authoritative test.
 
 On the ECS, once: install Docker + the compose plugin and create `~/app/.env` with
 `ALLOW_ORIGINS=https://your-domain.com`. Two private ACR repositories
