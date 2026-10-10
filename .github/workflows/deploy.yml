@@ -11,7 +11,10 @@
 #      -> docker compose up -d (recreates changed containers)
 #      -> health check
 #
-#  Required repository secrets (Settings -> Secrets and variables -> Actions):
+#  Secrets must be configured in the GitHub environment named `prod`
+#  (Settings -> Environments -> prod), which the `build` and `deploy` jobs
+#  declare via `environment: prod`. Repository-level secrets also work.
+#
 #    ECS_HOST        public IP of the ECS, e.g. 47.xx.xx.xx
 #    ECS_USER        SSH user, e.g. root or a deploy user
 #    ECS_SSH_KEY     private key whose pubkey is in ~/.ssh/authorized_keys
@@ -36,10 +39,12 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  IMAGE_WEB: ${{ secrets.ACR_REGISTRY }}/ali-ecs-docker-build-tutorial-web
-  IMAGE_API: ${{ secrets.ACR_REGISTRY }}/ali-ecs-docker-build-tutorial-api
   IMAGE_TAG: ${{ github.sha }}
   DEPLOY_DIR: ~/app
+
+# NOTE: IMAGE_WEB / IMAGE_API are defined per job, not here. They embed
+# secrets.ACR_REGISTRY, and environment secrets are only readable inside a job
+# that declares that environment (see the `environment: prod` keys below).
 
 jobs:
   check:
@@ -70,8 +75,35 @@ jobs:
     name: Build & Push to ACR
     runs-on: ubuntu-latest
     needs: check
+    # Required: the ACR credentials live in the `prod` environment.
+    # If a protection rule requires reviewers, it will also gate this job.
+    environment: prod
+    env:
+      IMAGE_WEB: ${{ secrets.ACR_REGISTRY }}/ali-ecs-docker-build-tutorial-web
+      IMAGE_API: ${{ secrets.ACR_REGISTRY }}/ali-ecs-docker-build-tutorial-api
     steps:
       - uses: actions/checkout@v4
+
+      # Fails fast with an actionable message instead of the cryptic
+      # "Username and password required" from docker/login-action.
+      - name: Verify ACR secrets are visible to this job
+        env:
+          ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+        run: |
+          missing=0
+          for name in ACR_REGISTRY ACR_USERNAME ACR_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is empty for this job."
+              echo "  Check that it exists in the 'prod' environment and that"
+              echo "  this job declares 'environment: prod' (it does)."
+              echo "  Simpler alternative: store it as a REPOSITORY secret,"
+              echo "  which every job can read."
+              missing=1
+            fi
+          done
+          exit $missing
 
       - uses: docker/login-action@v3
         with:
@@ -100,6 +132,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     environment: prod
+    env:
+      IMAGE_WEB: ${{ secrets.ACR_REGISTRY }}/ali-ecs-docker-build-tutorial-web
+      IMAGE_API: ${{ secrets.ACR_REGISTRY }}/ali-ecs-docker-build-tutorial-api
     steps:
       - uses: actions/checkout@v4
 
@@ -110,7 +145,7 @@ jobs:
           username: ${{ secrets.ECS_USER }}
           key: ${{ secrets.ECS_SSH_KEY }}
           port: ${{ secrets.ECS_PORT || 22 }}
-          source: "docker-compose.yml"
+          source: 'docker-compose.yml'
           target: ${{ env.DEPLOY_DIR }}
 
       - name: Pull images & restart containers
@@ -130,6 +165,14 @@ jobs:
           envs: ACR_REGISTRY,ACR_USERNAME,ACR_PASSWORD,IMAGE_WEB,IMAGE_API,IMAGE_TAG
           script: |
             set -e
+
+            if [ -z "$ACR_USERNAME" ] || [ -z "$ACR_PASSWORD" ]; then
+              echo "ACR_USERNAME / ACR_PASSWORD are empty on this job."
+              echo "Store them as REPOSITORY secrets, or declare the same"
+              echo "environment on this job if they are environment secrets."
+              exit 1
+            fi
+
             # docker login ACR (non-interactive, credentials not persisted)
             echo "$ACR_PASSWORD" | docker login "$ACR_REGISTRY" \
               --username "$ACR_USERNAME" --password-stdin

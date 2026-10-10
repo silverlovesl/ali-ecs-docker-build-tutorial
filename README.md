@@ -190,7 +190,9 @@ GitHub push -> lint & test -> docker build -> push to ACR (latest + github.sha)
             -> SSH to ECS -> docker login ACR -> docker pull -> compose up -d -> health check
 ```
 
-Required repository secrets:
+Required secrets — stored in the GitHub environment named **`prod`**
+(_Settings → Environments → prod_), which the `build` and `deploy` jobs declare. Repository-level
+secrets work too and are simpler if you'd rather not scope them:
 
 | Secret         | Value                                                       |
 | -------------- | ----------------------------------------------------------- |
@@ -201,6 +203,10 @@ Required repository secrets:
 | `ACR_REGISTRY` | e.g. `registry.cn-hangzhou.aliyuncs.com/my-namespace`       |
 | `ACR_USERNAME` | ACR access credential username                              |
 | `ACR_PASSWORD` | ACR access credential password                              |
+
+> Environment secrets are only readable inside jobs that declare that environment, and they
+> **cannot** be referenced from workflow-level `env:`. The workflow therefore defines
+> `IMAGE_WEB`/`IMAGE_API` at job level, not at the top of the file.
 
 On the ECS, once: install Docker + the compose plugin and create `~/app/.env` with
 `ALLOW_ORIGINS=https://your-domain.com`. Two private ACR repositories
