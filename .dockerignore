@@ -1,6 +1,9 @@
-# Keep the web image build context small (context = repository root).
-# NOTE: do NOT exclude anything under packages/ or apps/web — bun.lock lists
-# every workspace and `bun install --frozen-lockfile` fails if one is missing.
+# Keep the single-image build context small (context = repository root).
+#
+# NOTE: do NOT exclude apps/web, apps/api or packages — bun.lock lists every
+# workspace and `bun install --frozen-lockfile` fails if one is missing, and the
+# Go build needs apps/api. The frontend bundle is produced inside the image, so
+# a local dist/ is never needed.
 .git
 .github
 node_modules
@@ -10,7 +13,8 @@ node_modules
 **/build
 **/.turbo
 **/tmp
-apps/api
 *.md
 Makefile
 lefthook.yml
+docker-compose.yml
+docker-compose.override.yml

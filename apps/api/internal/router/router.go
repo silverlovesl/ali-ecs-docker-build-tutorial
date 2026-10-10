@@ -32,5 +32,9 @@ func New(cfg config.Config) *gin.Engine {
 		api.GET("/hello", health.Hello)
 	}
 
+	// In production the built frontend ships inside this same binary's image, so
+	// the process serves both the SPA and the API on a single port.
+	registerStaticFiles(engine, cfg.WebDir)
+
 	return engine
 }

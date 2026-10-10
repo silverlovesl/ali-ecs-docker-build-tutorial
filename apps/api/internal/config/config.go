@@ -14,6 +14,11 @@ type Config struct {
 	Port string
 	// AllowOrigins is the list of browser origins permitted by CORS.
 	AllowOrigins []string
+	// WebDir is a directory holding a built single-page app. When set (and it
+	// contains index.html) the server also serves the frontend, which is how the
+	// production image ships as a single process. Empty disables static serving
+	// so that `vite dev` keeps owning the frontend during development.
+	WebDir string
 }
 
 // Load reads configuration from environment variables and applies safe defaults
@@ -23,6 +28,7 @@ func Load() Config {
 		Env:          getEnv("APP_ENV", "development"),
 		Port:         getEnv("PORT", "8080"),
 		AllowOrigins: splitAndTrim(getEnv("ALLOW_ORIGINS", "http://localhost:3000")),
+		WebDir:       getEnv("WEB_DIR", ""),
 	}
 }
 

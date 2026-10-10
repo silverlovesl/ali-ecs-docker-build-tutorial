@@ -155,31 +155,41 @@ Re-install the hooks manually with `bun run prepare`.
 
 Copy `apps/api/.env.example` to `apps/api/.env` and adjust as needed:
 
-| Variable        | Default                 | Description                              |
-| --------------- | ----------------------- | ---------------------------------------- |
-| `APP_ENV`       | `development`           | `development` / `staging` / `production` |
-| `PORT`          | `8080`                  | API port                                 |
-| `ALLOW_ORIGINS` | `http://localhost:3000` | Comma-separated CORS allow list          |
+| Variable        | Default                 | Description                                             |
+| --------------- | ----------------------- | ------------------------------------------------------- |
+| `APP_ENV`       | `development`           | `development` / `staging` / `production`                |
+| `PORT`          | `8080`                  | HTTP port (serves the API and, with `WEB_DIR`, the SPA) |
+| `ALLOW_ORIGINS` | `http://localhost:3000` | Comma-separated CORS allow list                         |
+| `WEB_DIR`       | _empty_                 | Directory of a built SPA to serve; empty disables it    |
 
 ## Docker
 
-Two images are defined:
+One image is defined at the repository root (`Dockerfile`):
 
-- `apps/web/Dockerfile` — Bun builds the SPA, `nginx:alpine` serves it (port 80)
-- `apps/api/Dockerfile` — Go builds a static binary, minimal `alpine` runs it (port 8080)
+- stage 1 — Bun builds the SPA into `dist`
+- stage 2 — Go compiles a static binary
+- stage 3 — `alpine` runs the binary with the SPA at `/app/public`
 
-Run the whole stack locally:
+The Go server serves **both** the API and the frontend (`WEB_DIR`), so production is a single
+process on a single port. Run it locally:
 
 ```bash
-make docker-up      # docker compose up -d --build  -> http://localhost:3001
+make docker-up      # docker compose up -d --build  -> http://localhost:8080
 docker compose logs -f
 make docker-down
 ```
 
-`docker-compose.yml` is the **production** file (image names only, no build context).
-`docker-compose.override.yml` adds the local build contexts and is merged automatically by
-docker compose; it is never copied to the server. Containers bind to `127.0.0.1` only — the host
-nginx is the public entry point.
+The image name stays `ali-ecs-docker-build-tutorial-api` for continuity with the ACR repository
+created earlier — it now contains the frontend as well.
+
+`docker-compose.yml` is the **production** file (image name only, no build context).
+`docker-compose.override.yml` adds the local build context and is merged automatically by docker
+compose; it is never copied to the server. The container binds to `127.0.0.1` only — the host nginx
+is the public entry point.
+
+Gone compared to the two-image setup: the `nginx` sidecar, its `apps/web/nginx.conf`, and the second
+build/push. The cache headers that config set are now emitted by the Go static handler. The one
+thing still worth putting in the host nginx is `gzip on;` (the Go server does not compress).
 
 ## Deployment (GitHub Actions → Aliyun ECS)
 
@@ -189,6 +199,9 @@ nginx is the public entry point.
 GitHub push -> lint & test -> docker build -> push to ACR (latest + github.sha)
             -> SSH to ECS -> docker login ACR -> docker pull -> compose up -d -> health check
 ```
+
+One image is built and pushed, so there is exactly one ACR repository to create
+(`ali-ecs-docker-build-tutorial-api`).
 
 Required secrets — stored in the GitHub environment named **`prod`**
 (_Settings → Environments → prod_), which the `build` and `deploy` jobs declare. Repository-level
@@ -225,24 +238,26 @@ simply not been created yet, and ACR creates repos on first push, so the push it
 authoritative test.
 
 On the ECS, once: install Docker + the compose plugin and create `~/app/.env` with
-`ALLOW_ORIGINS=https://your-domain.com`. Two private ACR repositories
-(`ali-ecs-docker-build-tutorial-web`, `ali-ecs-docker-build-tutorial-api`) must
-exist under the namespace.
+`ALLOW_ORIGINS=https://your-domain.com`. One private ACR repository
+(`ali-ecs-docker-build-tutorial-api`) must exist under the namespace.
 
-Host nginx (already terminating SSL) proxies to the containers:
+Host nginx (already terminating SSL) forwards everything to the single container — the SPA and the
+JSON API share one port now:
 
 ```nginx
-location /tutorial-api/ {
+# optional but recommended: the Go server does not compress responses
+gzip on;
+gzip_types text/css application/javascript application/json image/svg+xml;
+
+location / {
     proxy_pass http://127.0.0.1:8080;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
 }
-
-location / {
-    proxy_pass http://127.0.0.1:3001;
-    proxy_set_header Host $host;
-}
 ```
+
+Because everything is same-origin, `ALLOW_ORIGINS` mainly matters if you also call the API from
+another domain; `WEB_DIR=/app/public` is what enables the SPA and is already set in the image.
 
 Only ports `22`, `80` and `443` need to be open in the Aliyun security group.
 

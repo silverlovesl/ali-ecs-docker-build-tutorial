@@ -1,19 +1,15 @@
 # =============================================================================
 #  LOCAL DEVELOPMENT ONLY — automatically merged by `docker compose` when this
-#  file sits next to docker-compose.yml. It adds the build contexts so images
+#  file sits next to docker-compose.yml. It adds the build context so the image
 #  can be built locally:
 #
 #      docker compose up -d --build
 #
-#  The CD workflow scp's ONLY docker-compose.yml to the ECS, so production
-#  never uses this file (images there come from ACR via `docker pull`).
+#  The CD workflow scp's ONLY docker-compose.yml to the ECS, so production never
+#  uses this file (the image there comes from ACR via `docker pull`).
 # =============================================================================
 services:
-  web:
+  app:
     build:
       context: .
-      dockerfile: apps/web/Dockerfile
-
-  api:
-    build:
-      context: apps/api
+      dockerfile: Dockerfile

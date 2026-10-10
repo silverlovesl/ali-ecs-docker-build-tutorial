@@ -3,13 +3,13 @@
 #
 #  Flow:
 #    GitHub push
-#      -> GitHub Actions: docker build
+#      -> GitHub Actions: docker build (one image: API + SPA)
 #      -> push image to ACR (tags: latest + github.sha)
 #      -> SSH to ECS
 #      -> docker login ACR
 #      -> docker pull image (by github.sha tag)
-#      -> docker compose up -d (recreates changed containers)
-#      -> health check
+#      -> docker compose up -d (recreates the container)
+#      -> health check (JSON API + SPA shell)
 #
 #  Secrets must be configured in the GitHub environment named `prod`
 #  (Settings -> Environments -> prod), which the `build` and `deploy` jobs
@@ -23,9 +23,10 @@
 #    ACR_USERNAME    ACR username (set in ACR console -> Access Credentials)
 #    ACR_PASSWORD    ACR password (fixed password or RAM user credential)
 #
-#  ACR prerequisites: create TWO repositories under the namespace:
-#    ali-ecs-docker-build-tutorial-web  (private) -> full image: $ACR_REGISTRY/ali-ecs-docker-build-tutorial-web:<tag>
-#    ali-ecs-docker-build-tutorial-api  (private) -> full image: $ACR_REGISTRY/ali-ecs-docker-build-tutorial-api:<tag>
+#  ACR prerequisites: create ONE private repository under the namespace:
+#    ali-ecs-docker-build-tutorial-api -> full image: $ACR_REGISTRY/ali-ecs-docker-build-tutorial-api:<tag>
+#  It serves both the SPA and the JSON API (the Go server also serves the built
+#  frontend), so a second repository is no longer needed.
 # =============================================================================
 name: CI/CD
 
@@ -42,9 +43,9 @@ env:
   IMAGE_TAG: ${{ github.sha }}
   DEPLOY_DIR: ~/app
 
-# NOTE: IMAGE_WEB / IMAGE_API are defined per job, not here. They embed
-# secrets.ACR_REGISTRY, and environment secrets are only readable inside a job
-# that declares that environment (see the `environment: prod` keys below).
+# NOTE: IMAGE is defined per job, not here. It embeds secrets.ACR_REGISTRY, and
+# environment secrets are only readable inside a job that declares that
+# environment (see the `environment: prod` keys below).
 
 jobs:
   check:
@@ -79,8 +80,7 @@ jobs:
     # If a protection rule requires reviewers, it will also gate this job.
     environment: prod
     env:
-      IMAGE_WEB: ${{ secrets.ACR_REGISTRY }}/ali-ecs-docker-build-tutorial-web
-      IMAGE_API: ${{ secrets.ACR_REGISTRY }}/ali-ecs-docker-build-tutorial-api
+      IMAGE: ${{ secrets.ACR_REGISTRY }}/ali-ecs-docker-build-tutorial-api
     steps:
       - uses: actions/checkout@v4
 
@@ -119,8 +119,8 @@ jobs:
           ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
           ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
         run: |
-          host="${IMAGE_WEB%%/*}"
-          repo_path="${IMAGE_WEB#*/}"
+          host="${IMAGE%%/*}"
+          repo_path="${IMAGE#*/}"
           echo "registry host : $host"
           echo "repository    : $repo_path"
 
@@ -194,15 +194,14 @@ jobs:
               echo "::warning::ACR answered HTTP $code for '$repo_path'."
               echo "  Either the repository does not exist yet, or ACR_USERNAME"
               echo "  has no access to this namespace. If the push below fails,"
-              echo "  create 'ali-ecs-docker-build-tutorial-web' and"
-              echo "  'ali-ecs-docker-build-tutorial-api' under the namespace in the"
-              echo "  ACR console and check the account's push permission."
+              echo "  create 'ali-ecs-docker-build-tutorial-api' under the"
+              echo "  namespace in the ACR console and check the account's push"
+              echo "  permission."
               ;;
             404)
               echo "::warning::ACR repository '$repo_path' was not found (HTTP 404)."
               echo "  This is often fine: personal-edition ACR creates the"
               echo "  repository on first push. If the push below fails, create"
-              echo "  'ali-ecs-docker-build-tutorial-web' and"
               echo "  'ali-ecs-docker-build-tutorial-api' in the ACR console."
               ;;
             *)
@@ -210,21 +209,13 @@ jobs:
               ;;
           esac
 
-      - name: Build frontend image
-        run: |
-          docker build -f apps/web/Dockerfile \
-            -t "$IMAGE_WEB:latest" -t "$IMAGE_WEB:$IMAGE_TAG" .
-
-      - name: Build backend image
+      - name: Build image (API + SPA)
         run: |
           docker build \
-            -t "$IMAGE_API:latest" -t "$IMAGE_API:$IMAGE_TAG" apps/api
+            -t "$IMAGE:latest" -t "$IMAGE:$IMAGE_TAG" .
 
-      - name: Push frontend image
-        run: docker push --all-tags "$IMAGE_WEB"
-
-      - name: Push backend image
-        run: docker push --all-tags "$IMAGE_API"
+      - name: Push image
+        run: docker push --all-tags "$IMAGE"
 
   deploy:
     name: Deploy to Aliyun ECS
@@ -232,8 +223,7 @@ jobs:
     needs: build
     environment: prod
     env:
-      IMAGE_WEB: ${{ secrets.ACR_REGISTRY }}/ali-ecs-docker-build-tutorial-web
-      IMAGE_API: ${{ secrets.ACR_REGISTRY }}/ali-ecs-docker-build-tutorial-api
+      IMAGE: ${{ secrets.ACR_REGISTRY }}/ali-ecs-docker-build-tutorial-api
     steps:
       - uses: actions/checkout@v4
 
@@ -253,15 +243,14 @@ jobs:
           ACR_REGISTRY: ${{ secrets.ACR_REGISTRY }}
           ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
           ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
-          IMAGE_WEB: ${{ env.IMAGE_WEB }}
-          IMAGE_API: ${{ env.IMAGE_API }}
+          IMAGE: ${{ env.IMAGE }}
           IMAGE_TAG: ${{ env.IMAGE_TAG }}
         with:
           host: ${{ secrets.ECS_HOST }}
           username: ${{ secrets.ECS_USER }}
           key: ${{ secrets.ECS_SSH_KEY }}
           port: ${{ secrets.ECS_PORT || 22 }}
-          envs: ACR_REGISTRY,ACR_USERNAME,ACR_PASSWORD,IMAGE_WEB,IMAGE_API,IMAGE_TAG
+          envs: ACR_REGISTRY,ACR_USERNAME,ACR_PASSWORD,IMAGE,IMAGE_TAG
           script: |
             set -e
 
@@ -276,15 +265,13 @@ jobs:
             echo "$ACR_PASSWORD" | docker login "$ACR_REGISTRY" \
               --username "$ACR_USERNAME" --password-stdin
 
-            # docker pull images (immutable github.sha tag)
-            docker pull "$IMAGE_WEB:$IMAGE_TAG"
-            docker pull "$IMAGE_API:$IMAGE_TAG"
+            # docker pull the image (immutable github.sha tag)
+            docker pull "$IMAGE:$IMAGE_TAG"
 
-            # retag to the names docker-compose.yml expects
-            docker tag "$IMAGE_WEB:$IMAGE_TAG" ali-ecs-docker-build-tutorial-web:latest
-            docker tag "$IMAGE_API:$IMAGE_TAG" ali-ecs-docker-build-tutorial-api:latest
+            # retag to the name docker-compose.yml expects
+            docker tag "$IMAGE:$IMAGE_TAG" ali-ecs-docker-build-tutorial-api:latest
 
-            # stop changed containers -> start with new images
+            # stop changed containers -> start with the new image
             cd ${{ env.DEPLOY_DIR }}
             docker compose up -d --remove-orphans
 
@@ -302,12 +289,24 @@ jobs:
             for i in $(seq 1 10); do
               if curl -fsS http://127.0.0.1:8080/tutorial-api/health > /dev/null; then
                 echo "API is healthy"
-                exit 0
+                break
               fi
               echo "Waiting for API... ($i/10)"
               sleep 5
+              if [ "$i" = "10" ]; then
+                echo "API health check failed"
+                docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+                docker logs --tail 50 ali-ecs-docker-build-tutorial-api
+                exit 1
+              fi
             done
-            echo "API health check failed"
-            docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
-            docker logs --tail 50 ali-ecs-docker-build-tutorial-api
-            exit 1
+
+            # The single image also serves the SPA, so verify the shell too.
+            if curl -fsS http://127.0.0.1:8080/ | grep -q '<div id="root"'; then
+              echo "SPA shell served"
+            else
+              echo "SPA shell missing from the root route"
+              curl -sS -o /dev/null -w 'GET / -> %{http_code}\n' http://127.0.0.1:8080/
+              docker logs --tail 50 ali-ecs-docker-build-tutorial-api
+              exit 1
+            fi

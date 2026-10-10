@@ -77,10 +77,10 @@ generate: ## Regenerate the TanStack Router route tree
 
 ##@ Docker
 
-docker-build: ## Build both images locally (ali-ecs-docker-build-tutorial-web, -api)
+docker-build: ## Build the deployment image locally (API + SPA)
 	docker compose build
 
-docker-up: ## Build if needed and start both containers (http://localhost:3001)
+docker-up: ## Build if needed and start the container (http://localhost:8080)
 	docker compose up -d --build
 
 docker-down: ## Stop and remove the containers

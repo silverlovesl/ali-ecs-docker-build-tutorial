@@ -1,27 +1,25 @@
-# Runs on the ECS host. Containers bind to 127.0.0.1 only —
-# the host nginx (SSL termination) is the public entry point.
+# Runs on the ECS host. A single container serves both the SPA and the API on
+# port 8080 and binds to 127.0.0.1 only — the host nginx (SSL termination) is
+# the public entry point and proxies everything here.
 #
-#   web -> 127.0.0.1:3001  (proxy_pass for the SPA)
-#   api -> 127.0.0.1:8080  (proxy_pass for /tutorial-api)
+#   https://your-domain/                -> 127.0.0.1:8080  (SPA)
+#   https://your-domain/tutorial-api/*  -> 127.0.0.1:8080  (JSON API)
 #
 # Optional overrides via a .env file next to this compose file:
 #   ALLOW_ORIGINS=https://your-domain.com
+#
+# The image keeps its historical `-api` name so the existing ACR repository
+# still works; it now contains the frontend as well.
 
 services:
-  web:
-    image: ali-ecs-docker-build-tutorial-web:latest
-    container_name: ali-ecs-docker-build-tutorial-web
-    restart: unless-stopped
-    ports:
-      - '127.0.0.1:3001:80'
-
-  api:
+  app:
     image: ali-ecs-docker-build-tutorial-api:latest
     container_name: ali-ecs-docker-build-tutorial-api
     restart: unless-stopped
     environment:
       APP_ENV: production
       PORT: 8080
+      WEB_DIR: /app/public
       ALLOW_ORIGINS: ${ALLOW_ORIGINS:-http://localhost:3000}
     ports:
       - '127.0.0.1:8080:8080'
